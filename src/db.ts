@@ -6,53 +6,46 @@ import { LEADERBOARD_STATS } from "./constants.js";
 // scoped credentials. A local `npm start` normally has no Mongo reachable, so a missing or
 // unreachable URI must degrade to "no persistence" rather than crash the room.
 
-// The persisted client state (what `saveProgress` carries, see sanitize.ts). The client keeps
-// nothing in the browser: this document is the player's only save.
+// The persisted client state (what `saveProgress` carries, see sanitize.ts). The keys are the
+// client's `state` keys (src/state.js `fresh()`). This document is the player's only save.
 export interface PlayerDoc {
   _id: string; // Bloxity user id -- see WorldRoom.ts (guests are never saved)
   username?: string; // display name as of the last save
-  trophies?: number; // Wins (the HUD's trophy counter, the shop currency)
-  gems?: number;
-  energy?: number; // lightning (rebirth.js), the race speed
+  wins?: number; // the Wins balance (the shop currency)
+  totalWins?: number; // Wins ever earned (Most Wins board, only ever goes up)
+  level?: number; // octopus level, capped per rebirth
+  xp?: number; // XP into the current level
   rebirths?: number;
-  autoRebirth?: boolean;
-  bestDistance?: number; // personal best race, studs (only ever goes up)
-  playtime?: number; // s with the game visible
-  boats?: string[]; // owned boat ids (client BOATS.list)
-  boat?: string; // the equipped boat (an owned one)
-  engines?: string[]; // owned engine ids (client engine.js ENGINES)
-  engine?: string; // the equipped engine, "" = none
-  partners?: string[]; // owned partner ids (client PARTNER.partners)
-  partner?: string; // the equipped partner, "" = none
-  trails?: string[]; // owned trail ids (client TRAILS.list)
-  trail?: string; // the equipped trail, "" = none
-  pets?: SavedPet[]; // owned pets (client pets.js), at most PETS_MAX
-  petSlots?: number; // pets equipped at once
-  petStorage?: number; // pets owned at most
-  eggsSeen?: string[]; // pet kinds ever hatched (client eggs.js: the NEW! tag)
-  world?: string; // the world the player was in (client worlds.js WORLDS), "" = the start world
-  worldsUnlocked?: string[]; // worlds whose portal requirement was met once (they stay open)
-  giftTime?: number; // Online Gifts clock, s online this round
-  giftsClaimed?: number[]; // GIFTS.list indexes claimed this round
-  potions?: Record<string, number>; // potion id -> count (gifts.js)
+  owned?: string[]; // owned tentacle skin ids (client TENTACLES)
+  equipped?: string; // the equipped skin (an owned one)
+  zonesBought?: string[]; // premium (Wins-priced) training zone ids bought (client ZONES)
+  bestStage?: number; // highest lane stage cleared (only ever goes up)
+  playtime?: number; // s with the game running (only ever goes up)
+  train2x?: number; // s left on the x2 Train potion
+  wins2x?: boolean; // permanent x2 Wins bought
+  starter?: boolean; // the one-time starter pack bought
+  bossTimer?: number; // s until the hub boss drops
   lastSeen?: number; // epoch ms of the last activity
-  // Spin wheel (spin.ts): written only by the server's `spin` handler, never by saveProgress.
-  spins?: number; // spins ready to use
-  spinAt?: number; // epoch ms the next free spin arrives
-  // Daily Reward (daily.ts): written by the server only, never by saveProgress.
-  dailyDay?: number; // days unlocked this cycle
-  dailyLast?: number; // UTC day index of the last unlock
-  dailyClaimed?: number[]; // claimed day indexes this cycle
+  items?: Record<string, number>; // boosts held, by ITEM_IDS kind (My Items)
+  wins2xT?: number; // s left on the x2 Wins boost
+  dmg2xT?: number; // s left on the x2 Damage boost
+  speedT?: number; // s left on the Speed boost
+  titles?: string[]; // earned title ids (client TITLES)
+  title?: string; // the equipped title ("" = none; must be earned)
+  titlesSeen?: string[]; // earned titles the player has looked at (the "!" badge)
+  trails?: string[]; // owned trail ids (client TRAILS)
+  trail?: string; // the equipped trail ("" = none; must be owned)
+  ascend?: number; // Ascend tier
+  stats?: Record<string, number>; // title counters (kills, bosses, giants, throws, hits, z_<zone>, ...)
+  // Server-owned (never written by saveProgress): Daily Rewards (daily.ts) and Playtime Rewards (gifts.ts).
+  dailyDay?: number;
+  dailyLast?: number;
+  dailyClaimed?: number[];
+  dailyStreak?: number;
+  giftTime?: number;
+  giftClaimed?: number[];
   version: number;
   updatedAt: Date;
-}
-
-// One owned pet: its kind (client PETS.kinds key) and craft tier (index into PETS.tiers).
-export interface SavedPet {
-  kind: string;
-  tier: number;
-  equipped: boolean;
-  locked: boolean;
 }
 
 let client: MongoClient | null = null;

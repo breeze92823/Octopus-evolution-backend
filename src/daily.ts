@@ -1,17 +1,18 @@
 import { DAILY_DAYS } from "./constants.js";
 import type { PlayerDoc } from "./db.js";
 
-// Daily Reward (client src/daily.js): a 7-day calendar on the SERVER's clock (UTC days), so a
-// changed device clock can't unlock anything. Each new UTC day the player joins (or is online
-// through midnight) unlocks one more day, up to DAILY_DAYS; unlocked days stay claimable until
-// claimed (days need not be consecutive). Once all are claimed, the next new day starts a fresh
-// cycle at day 1. Unlike the rest of the save, the client never writes these fields:
-// claims go through the `claimDaily` message (WorldRoom.ts) and only then does the client grant
-// the reward.
+// Daily Rewards (client src/rewards.js, DAILY.days): a 7-day streak calendar on the SERVER's clock
+// (UTC days), so a changed device clock can't unlock anything. Coming back on the very next UTC day
+// unlocks one more day (up to DAILY_DAYS) and grows the streak; missing a day starts the streak AND
+// the calendar over at day 1 (unclaimed days are lost). Once all DAILY_DAYS are claimed, the next
+// day starts a fresh week while the streak keeps counting. Unlike the rest of the save, the client
+// never writes these fields: claims go through `claimDaily` (WorldRoom.ts) and only then does the
+// client grant the reward.
 export interface DailyState {
-  day: number; // days unlocked this cycle (0..DAILY_DAYS)
+  day: number; // days unlocked this week (0..DAILY_DAYS)
   last: number; // UTC day index (utcDay) of the last unlock, -1 = never
-  claimed: number[]; // claimed day indexes (0-based) this cycle
+  claimed: number[]; // claimed day indexes (0-based) this week
+  streak: number; // consecutive days played
 }
 
 const DAY_MS = 86_400_000;
@@ -23,16 +24,26 @@ export function readDaily(doc: Partial<PlayerDoc> | null): DailyState {
   const last = Number.isInteger(doc?.dailyLast) ? doc!.dailyLast! : -1;
   const raw = Array.isArray(doc?.dailyClaimed) ? doc!.dailyClaimed! : [];
   const claimed = [...new Set(raw.filter((i) => Number.isInteger(i) && i >= 0 && i < day))].sort((a, b) => a - b);
-  return { day, last, claimed };
+  const streak = Number.isInteger(doc?.dailyStreak) ? Math.max(0, doc!.dailyStreak!) : day > 0 ? 1 : 0;
+  return { day, last, claimed, streak };
 }
 
 // Unlocks today's day if it isn't yet. Returns true when the state changed (save it).
 export function rollDaily(s: DailyState, today = utcDay()): boolean {
   if (s.last >= today) return false; // already rolled today (or the clock went back)
-  if (s.day === 0 || s.claimed.length >= DAILY_DAYS) {
+  const nextDay = s.day > 0 && s.last === today - 1;
+  if (!nextDay) {
+    // New player, or a missed day: the streak starts over.
     s.day = 1;
     s.claimed = [];
-  } else s.day = Math.min(DAILY_DAYS, s.day + 1);
+    s.streak = 1;
+  } else {
+    if (s.claimed.length >= DAILY_DAYS) {
+      s.day = 1;
+      s.claimed = [];
+    } else s.day = Math.min(DAILY_DAYS, s.day + 1);
+    s.streak++;
+  }
   s.last = today;
   return true;
 }
@@ -47,8 +58,8 @@ export function claimDaily(s: DailyState, i: unknown): boolean {
 
 // What the client is sent: the state plus when the next UTC day starts (server clock).
 export function dailyView(s: DailyState, now = Date.now()) {
-  return { unlocked: s.day, claimed: [...s.claimed], nextAt: (utcDay(now) + 1) * DAY_MS, serverTime: now };
+  return { unlocked: s.day, claimed: [...s.claimed], streak: s.streak, nextAt: (utcDay(now) + 1) * DAY_MS, serverTime: now };
 }
 
 // The doc fields that store it.
-export const dailyFields = (s: DailyState) => ({ dailyDay: s.day, dailyLast: s.last, dailyClaimed: [...s.claimed] });
+export const dailyFields = (s: DailyState) => ({ dailyDay: s.day, dailyLast: s.last, dailyClaimed: [...s.claimed], dailyStreak: s.streak });

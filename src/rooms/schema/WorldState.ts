@@ -5,23 +5,23 @@ import { schema, t, type SchemaType } from "@colyseus/schema";
 export const PlayerState = schema(
   {
     username: t.string().default(""), // client-reported Bloxity displayName/username, not validated
-    signedIn: t.boolean().default(false), // has a Bloxity id: only signed-in players are saved
-    pfp: t.string().default(""), // Bloxity profile picture URL ("" = none), for the others' racer heads
-    racing: t.boolean().default(false), // in a race right now (`race` message)
-    distance: t.float64().default(0), // this race's distance so far, studs
+    signedIn: t.boolean().default(false), // has a verified Bloxity id: only signed-in players are saved
+    uid: t.string().default(""), // the verified Bloxity account id ("" = guest): matches Bloxity chat's userId
+    pfp: t.string().default(""), // Bloxity profile picture URL ("" = none)
     // Presence (presence.ts, `pose` / `loadout` / `setAvatar`): what the others draw in the world.
-    x: t.float64().default(0), // feet position in track coordinates (z minus the race scroll)
+    x: t.float64().default(0), // feet position, hub coordinates (+X east, +Z south)
     y: t.float64().default(0),
     z: t.float64().default(0),
-    yaw: t.float32().default(0), // heading, rad (PI = facing the gate)
-    speed: t.float32().default(0), // m/s, for flames and dead reckoning
-    boat: t.string().default(""), // equipped catalog ids (client config.js), "" = none / default
-    engine: t.string().default(""),
-    trail: t.string().default(""),
-    partner: t.string().default(""),
-    pets: t.string().default(""), // equipped pets "kind:tier,kind:tier"
-    world: t.string().default(""), // the world the player is in (client WORLDS id), "" = the start world
-    avatar: t.string().default(""), // Bloxity look JSON { equipped, proportions, skin }, "" = default
+    yaw: t.float32().default(0), // heading, rad
+    speed: t.float32().default(0), // m/s
+    tentacle: t.string().default(""), // equipped tentacle skin id (client TENTACLES), "" = default
+    level: t.uint32().default(1), // octopus level: its size and arm count
+    title: t.string().default(""), // equipped title id (client TITLES), "" = none
+    trail: t.string().default(""), // equipped trail id (client TRAILS), "" = none
+    ascend: t.uint32().default(0), // Ascend tier (a bigger octopus)
+    avatar: t.string().default(""), // Bloxity look JSON { equipped, proportions, outfitKey } (ids only), "" = default
+    emote: t.string().default(""), // Bloxity emote id being played ("" = none)
+    emoteSeq: t.uint32().default(0), // counts emote starts, so the same emote can play again
   },
   "PlayerState",
 );
