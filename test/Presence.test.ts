@@ -3,7 +3,7 @@ import type { ColyseusTestServer } from "@colyseus/testing";
 
 import type appConfig from "../src/app.config.js";
 import { WorldState } from "../src/rooms/schema/WorldState.js";
-import { AVATAR_MAX_LEN, POSE_BOUNDS, PRESENCE_PETS_MAX } from "../src/constants.js";
+import { AVATAR_MAX_LEN, POSE_BOUNDS } from "../src/constants.js";
 import { sleep } from "./fakePlayers.js";
 import { testServer } from "./server.js";
 
@@ -12,47 +12,46 @@ describe("presence", () => {
   before(async () => (colyseus = await testServer()));
   beforeEach(async () => await colyseus.cleanup());
 
-  it("takes the pose, gear and look from the join options", async () => {
+  it("takes the pose, loadout and look from the join options", async () => {
     const room = await colyseus.createRoom<WorldState>("world", {});
     const a = await colyseus.connectTo(room, {
-      userId: "guest-a",
       pose: { x: 3, y: 0.5, z: -12, yaw: Math.PI, speed: 4 },
-      loadout: { boat: "canoe", engine: "ladder-3", trail: "red", partner: "", pets: [{ kind: "dog", tier: 0 }], world: "city" },
-      avatar: '{"equipped":{}}',
+      loadout: { tentacle: "lagoon", level: 14 },
+      avatar: JSON.stringify({ equipped: { hatId: "6602f1", handId: "77", skinId: "3" }, proportions: { height: 1.3 }, outfitKey: "o1_s3" }),
     });
     await sleep(50);
     const p = room.state.players.get(a.sessionId)!;
     assert.deepStrictEqual([p.x, p.y, p.z, p.speed], [3, 0.5, -12, 4]);
     assert.ok(Math.abs(Math.abs(p.yaw) - Math.PI) < 1e-5);
-    assert.deepStrictEqual([p.boat, p.engine, p.trail, p.partner, p.pets, p.world], ["canoe", "ladder-3", "red", "", "dog:0", "city"]);
-    assert.strictEqual(p.avatar, '{"equipped":{}}');
+    assert.deepStrictEqual([p.tentacle, p.level], ["lagoon", 14]);
+    assert.deepStrictEqual(JSON.parse(p.avatar), { equipped: { hatId: "6602f1", skinId: "3", handId: "77" }, proportions: { height: 1.3 }, outfitKey: "o1_s3" });
   });
 
-  it("bounds poses and gear and relays them to the others", async () => {
+  it("bounds poses and loadouts and relays them to the others", async () => {
     const room = await colyseus.createRoom<WorldState>("world", {});
-    const a = await colyseus.connectTo(room, { userId: "guest-a" });
-    const b = await colyseus.connectTo(room, { userId: "guest-b" });
+    const a = await colyseus.connectTo(room, {});
+    const b = await colyseus.connectTo(room, {});
     await sleep(50);
     a.send("pose", { x: 1e9, y: "high", z: -1e12, yaw: 7, speed: -3 });
-    const pets = Array.from({ length: 20 }, () => ({ kind: "cat", tier: 1 }));
-    a.send("loadout", { boat: "Bad Id!", engine: "basic", trail: "", partner: "jester", pets: [...pets, { kind: "x", tier: 99 }], world: "Bad World!" });
+    a.send("loadout", { tentacle: "Bad Id!", level: 0.4 });
     a.send("setAvatar", { avatar: "x".repeat(AVATAR_MAX_LEN + 1) });
     await sleep(100);
     const p = room.state.players.get(a.sessionId)!;
     assert.strictEqual(p.x, POSE_BOUNDS.xy);
     assert.strictEqual(p.y, 0, "a non-number is ignored");
-    assert.strictEqual(p.z, -POSE_BOUNDS.z);
+    assert.strictEqual(p.z, -POSE_BOUNDS.xy);
     assert.ok(Math.abs(p.yaw - Math.atan2(Math.sin(7), Math.cos(7))) < 1e-5, "yaw wrapped to -PI..PI");
     assert.strictEqual(p.speed, 0);
-    assert.strictEqual(p.boat, "", "a malformed id is ignored");
-    assert.strictEqual(p.world, "", "a malformed world is ignored");
-    assert.deepStrictEqual([p.engine, p.partner], ["basic", "jester"]);
-    assert.strictEqual(p.pets.split(",").length, PRESENCE_PETS_MAX);
+    assert.strictEqual(p.tentacle, "", "a malformed id is ignored");
+    assert.strictEqual(p.level, 1, "a level is at least 1");
     assert.strictEqual(p.avatar, "", "an oversized look is ignored");
 
+    a.send("loadout", { tentacle: "galaxy", level: 30 });
+    await sleep(100);
     // b's synced copy of the roster sees a's presence.
     const seen = (b.state as any).players.get(a.sessionId);
-    assert.strictEqual(seen.engine, "basic");
+    assert.strictEqual(seen.tentacle, "galaxy");
+    assert.strictEqual(seen.level, 30);
     assert.strictEqual(seen.x, POSE_BOUNDS.xy);
   });
 });
